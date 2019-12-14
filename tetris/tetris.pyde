@@ -106,6 +106,39 @@ class Game():
         game.printHeld()
         game.checkGameOver()
         game.activePiece.hardDrop()
+        
+    def fall(self):
+        #Make block fall
+        #Figure out lowest point of piece
+        lowestPoint = self.activePiece.blocks[0].y
+        for i in self.activePiece.blocks:
+            if i.y > lowestPoint:
+                lowestPoint = i.y
+                
+        blockBelow = False
+        
+        #Figure out if the piece has hit the floor
+        if not lowestPoint == 19: 
+            for i in self.activePiece.blocks:
+                if self.board.board[i.x][i.y + 1] != 0:
+                    #If there is something below any of this piece's blocks, stop falling
+                    blockBelow = True
+        else:
+            # If the piece has hit the floor, stop falling
+            blockBelow = True
+                    
+        if not blockBelow:
+            #If the path is clear, keep falling
+            self.activePiece.y += 1
+        else:
+            #If the block cannot fall, save its blocks to the board array, delete rows if necessary, run arcade mode if necessary, and create a new piece
+            self.board.updateBoard()
+            self.deleteRows()
+            if self.arcade:
+                self.arcadeMode()
+            self.newPiece()
+            #If the player just held a block, they can do so again
+            self.justHeld = False
     
     def youLost(self):
         #Loss screen
@@ -260,6 +293,70 @@ class Game():
             for j in pieceToPrint.blocks:
                 fill(j.r, j.g, j.b)
                 rect(j.x * tempStep + w/60, (j.y + 4)* tempStep + tempStep*2, tempStep, tempStep)
+              
+    def displayNextBlocks(self):
+        #Display the next few blocks
+        textSize(30)
+        textMode(CENTER)
+        fill(255)
+        text("NEXT", w/7*5.69, w/5)
+
+        previewPieces = []
+        for j in self.nextPieces:
+            if j == 0:
+                previewPieces.append(OPiece(4, 1))
+            elif j == 1:
+                previewPieces.append(IPiece(4, 1))
+            elif j == 2:
+                previewPieces.append(LPiece(4, 1))
+            elif j == 3:
+                previewPieces.append(JPiece(4, 1))
+            elif j == 4:
+                previewPieces.append(ZPiece(4, 1))
+            elif j == 5:
+                previewPieces.append(SPiece(4, 1))
+            elif j == 6:
+                previewPieces.append(TPiece(4, 1))
+                
+        count = 0
+        tempStep = step*0.69
+        for i in previewPieces:
+            fill(i.r, i.g, i.b)
+            for j in i.blocks:
+                rect(j.x * tempStep + (w/7*5.1), (j.y + 4*count)* tempStep + tempStep*8.5, tempStep, tempStep)
+            count += 1
+        
+    
+    def arcadeMode(self):
+        #Arcade mode function to check for holes/overhang in the board
+        
+        #currentHoles counts how many holes there currently are in the board
+        self.currentHoles = 0
+        #newHoles is the difference between the local currentHoles and the game's holeCount
+        self.newHoles = 0
+        for x in range(self.rows):
+            for y in range(1, self.cols):
+                if self.board.board[x][y] == 0 and self.board.board[x][y-1] != 0:
+                    #If this block is empty but the block above it isn't, then it's a hole/overhang
+                    self.currentHoles += 1
+        #Determine if there are more or less holes than the previous iteration
+        self.newHoles = self.currentHoles - self.holeCount
+
+    
+    def showScore(self):
+        textSize(30)
+        textMode(CENTER)
+        fill(255)
+        text("Score:\n" + str(self.score), w/10, w/5*3)
+        text("Level:\n" + str(self.level), w/10, w/5*4)
+
+    
+    def checkGameOver(self):
+        #Check if the top middle of the board is occupied (meaning blocks cannot fall)
+        for i in range(3, 6):
+            if self.board.board[i][2] != 0:
+                self.gameOver = True
+
                 
 class Board():
     #Board class that conceptualizes the screen as a grid where pieces are stored
@@ -353,6 +450,77 @@ class Piece():
         #Speeding up the block's descent based on input
         if game.keyHandler[DOWN] == True:
             game.fps = int(game.fps/5)
+         
+    def rotatePiece(self):
+        #Key handling function to call the piece's specialized rotate function
+        if self.rotCooldown == 0:
+            if game.keyHandler[UP] == True:
+                self.rot('R')
+                self.rotCooldown = 10
+                
+            elif game.keyHandler['z'] == True:
+                self.rot('L')
+                self.rotCooldown = 10
+        else:
+            self.rotCooldown -= 1
+            
+    def rot(self, dir):
+        #Rotation is mathematically the same for all pieces except the I piece.
+        tempCoords = []
+        for i in self.coords:
+            if dir == 'L':
+                tempX = i[1] * -1
+                tempY = i[0]
+            elif dir == 'R':
+                tempX = i[1]
+                tempY = i[0] * -1
+            tempCoords.append([tempX, tempY])
+        tempBlocks = []
+        for i in tempCoords:
+            tempBlocks.append([self.x + i[0], self.y + i[1]])
+            
+        #only rotate if it can, that is, if it won't bump into other blocks or the side of the board
+        canRotate = True
+        for i in tempBlocks:
+            if i[0] < 0 or i[0] > 9 or i[1] > 19:
+                canRotate = False
+                
+        if canRotate:
+            for i in tempBlocks:
+                if game.board.board[i[0]][i[1]] != 0:
+                    canRotate = False
+                    
+        if canRotate:
+            for i in range(len(self.coords)):
+                self.coords[i] = tempCoords[i]
+
+   
+    def hardDrop(self):
+        #Hard Drop slams the piece into the ground
+        if game.dropCooldown == 0:
+            blockBelow = False
+            if game.keyHandler[' '] == True:
+                while not blockBelow:
+                    #Basically, figure out at which point it should stop falling
+                    lowestPoint = self.blocks[0].y
+                    for i in self.blocks:
+                        if i.y > lowestPoint:
+                            lowestPoint = i.y
+                    if lowestPoint == 19: 
+                        blockBelow = True
+                        break
+                    else:
+                        for i in self.blocks:
+                            if game.board.board[i.x][i.y + 1] != 0:
+                                blockBelow = True
+                    if not blockBelow:
+                        self.y += 1
+                        self.updatePiece()
+                        game.droppedHard = True
+                game.dropCooldown = 30
+                game.justHeld = False
+        else:
+            game.dropCooldown -= 1
 
 
 class OPiece(Piece):
