@@ -161,6 +161,7 @@ class Game():
             self.level += 1
         #Adjust game speed in a compounding manner based on level
         self.fps = int(30 / (1 + 0.30*(self.level-1)))
+    
     def newPiece(self):
         #Pop the next piece in the array 
         self.currentPieceValue = self.nextPieces.pop(0)
@@ -207,6 +208,7 @@ class Game():
             addedPiece = randint(0, 6)
             if not addedPiece in self.nextPieces:
                 self.nextPieces.append(addedPiece)
+    
     def deleteRows(self):
         #Check if rows are full, and delete them
         rowsDeleted = 0
@@ -341,6 +343,28 @@ class Game():
                     self.currentHoles += 1
         #Determine if there are more or less holes than the previous iteration
         self.newHoles = self.currentHoles - self.holeCount
+        if self.newHoles > 0:
+            #If there are more holes, then raise the board by that much
+            self.noHold.rewind()
+            self.noHold.play()
+            for i in range(self.newHoles):
+                for j in range(self.cols - 1):
+                    for k in range(self.rows):
+                        #Raise the board up
+                        self.board.board[k][j] = self.board.board[k][j+1]
+                #Set the game's holeCount value to however many holes were found in this iteration
+                self.holeCount = self.currentHoles
+                #Fill the bottom with grey blocks
+                for l in range(self.rows):
+                    self.board.board[l][self.cols-1] = Block(100, 100, 100, l, self.cols-1)
+        elif self.newHoles < 0:
+            #If there are now less holes, lower the board by that much
+            for i in range(abs(self.newHoles)):
+                for j in range(self.cols - 1, 0, -1):
+                    for k in range(self.rows):
+                        self.board.board[k][j] = self.board.board[k][j-1]
+            #Update the game's holdCount
+            self.holeCount += self.newHoles
 
     
     def showScore(self):
